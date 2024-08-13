@@ -82,6 +82,7 @@ void Server::sendMessageToClients(const std::string& message, std::shared_ptr<bo
             boost::asio::async_write(*client.second, boost::asio::buffer(*message_ptr), [this, message_ptr](const boost::system::error_code& error, std::size_t bytes_transferred) {
                 handleWrite(error, bytes_transferred);
                 });
+
         }
     }
 }

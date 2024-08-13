@@ -27,4 +27,5 @@ private:
 public:
     Server(boost::asio::io_service& io_service);
     ~Server();
+
 };
