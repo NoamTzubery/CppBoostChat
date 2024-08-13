@@ -46,9 +46,22 @@ void Server::handleNewConnection(std::shared_ptr<boost::asio::ip::tcp::socket> s
 
 void Server::readFromClient(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    auto buffer = std::make_shared<std::vector<char>>(INIT_BUFFER_SIZE);
-    socket->async_receive(boost::asio::buffer(*buffer), [this, socket, buffer](const boost::system::error_code& error, std::size_t bytes) {
-        handleRead(error, bytes, socket, buffer);
+    auto size_buffer = std::make_shared<std::vector<char>>(sizeof(uint32_t));
+    socket->async_receive(boost::asio::buffer(*size_buffer), [this, socket, size_buffer](const boost::system::error_code& error, std::size_t bytes) {
+        if (!error && bytes == sizeof(uint32_t))
+        {
+            uint32_t message_size = 0;
+            std::memcpy(&message_size, size_buffer->data(), sizeof(uint32_t));
+
+            auto message_buffer = std::make_shared<std::vector<char>>(message_size);
+            socket->async_receive(boost::asio::buffer(*message_buffer), [this, socket, message_buffer](const boost::system::error_code& error, std::size_t bytes) {
+                handleRead(error, bytes, socket, message_buffer);
+                });
+        }
+        else
+        {
+            handleRead(error, 0, socket, size_buffer);
+        }
         });
 }
 
@@ -74,15 +87,30 @@ void Server::handleRead(const boost::system::error_code& error, std::size_t byte
 
 void Server::sendMessageToClients(const std::string& message, std::shared_ptr<boost::asio::ip::tcp::socket> sender_socket)
 {
-    auto message_ptr = std::make_shared<std::string>(message);
+    uint32_t message_size = static_cast<uint32_t>(message.size());
+
     for (auto& client : _clients)
     {
         if (client.second != sender_socket)
         {
-            boost::asio::async_write(*client.second, boost::asio::buffer(*message_ptr), [this, message_ptr](const boost::system::error_code& error, std::size_t bytes_transferred) {
-                handleWrite(error, bytes_transferred);
-                });
+            auto size_buffer = std::make_shared<std::vector<char>>(sizeof(uint32_t));
+            std::memcpy(size_buffer->data(), &message_size, sizeof(uint32_t));
 
+            boost::asio::async_write(*client.second, boost::asio::buffer(*size_buffer),
+                [this, client, size_buffer, message](const boost::system::error_code& error, std::size_t bytes_transferred) {
+                    if (!error)
+                    {
+                        auto message_ptr = std::make_shared<std::string>(message);
+                        boost::asio::async_write(*client.second, boost::asio::buffer(*message_ptr),
+                            [this, message_ptr](const boost::system::error_code& error, std::size_t bytes_transferred) {
+                                handleWrite(error, bytes_transferred);
+                            });
+                    }
+                    else
+                    {
+                        std::cerr << "Write error (size): " << error.message() << std::endl;
+                    }
+                });
         }
     }
 }

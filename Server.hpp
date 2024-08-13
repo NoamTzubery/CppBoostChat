@@ -10,7 +10,6 @@ class Server
 {
 private:
     static constexpr auto PORT = 12345;
-    static constexpr auto INIT_BUFFER_SIZE = 1024;
     boost::asio::io_service& _io_service;
     boost::asio::ip::tcp::acceptor _acceptor;
     boost::asio::ip::tcp::socket _socket;
